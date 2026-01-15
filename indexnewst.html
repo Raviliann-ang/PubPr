@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сайт для подбору литературы</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="main-title">Сайт для подбору литературы</h1>
+        </header>
+
+        <main>
+            <div class="search-section">
+                <form id="searchForm" class="search-form">
+                    <input type="text"
+                           id="searchInput"
+                           placeholder="Введите теги через пробел: фэнтези мужчина"
+                           class="search-input">
+                    <button type="submit" class="search-button">Найти</button>
+                </form>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h2>Результаты поиска</h2>
+                <div id="searchResults" class="results-grid"></div>
+            </div>
+
+            <div class="add-section">
+                <h2>Добавить новую книгу</h2>
+                <form id="addForm" class="add-form">
+                    <input type="text" name="title" placeholder="Название книги*" required>
+                    <input type="text" name="author" placeholder="Автор*" required>
+                    <input type="text" name="genre" placeholder="Жанры (через пробел)*" required>
+                    <select name="main_character" required>
+                        <option value="">Выберите главного героя*</option>
+                        <option value="Главный герой: мужчина">Мужчина</option>
+                        <option value="Главный герой: женщина">Женщина</option>
+                        <option value="Главные герои: мужчина и женщина">Мужчина и женщина</option>
+                    </select>
+                    <select name="romance_line" required>
+                        <option value="">Романтическая линия*</option>
+                        <option value="Романтическая линия: присутствует">Присутствует</option>
+                        <option value="Романтическая линия: отсутствует">Отсутствует</option>
+                    </select>
+                    <textarea name="description" placeholder="Описание книги*" required></textarea>
+                    <button type="submit" class="add-button">Добавить книгу</button>
+                </form>
+                <div id="addMessage" class="message"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Обработка поиска
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (!query) return;
+
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('searchResults');
+            resultsContainer.innerHTML = '<div class="loading">Ищем книги...</div>';
+            resultsSection.style.display = 'block';
+
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'query=' + encodeURIComponent(query)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.length > 0) {
+                    resultsContainer.innerHTML = data.map(book => {
+                        const characterClass = book.main_character.toLowerCase().includes('мужчина') ?
+                            (book.main_character.toLowerCase().includes('женщина') ? 'both' : 'male') : 'female';
+                        const romanceClass = book.romance_line.toLowerCase().includes('присутствует') ? 'present' : 'absent';
+
+                        return `
+                            <div class="book-card">
+                                <h3>${book.title}</h3>
+                                <p><strong>Автор:</strong> ${book.author}</p>
+                                <div class="genre-tags">
+                                    ${book.genre.split(' ').filter(g => g.trim()).map(genre =>
+                                        `<span class="genre-tag">${genre}</span>`
+                                    ).join('')}
+                                </div>
+                                <div class="character-info">
+                                    <span class="character-badge ${characterClass}">${book.main_character}</span>
+                                    <span class="romance-badge ${romanceClass}">${book.romance_line}</span>
+                                </div>
+                                <div class="description">
+                                    ${book.description}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    resultsContainer.innerHTML = '<div class="no-results">По вашему запросу ничего не найдено</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                resultsContainer.innerHTML = '<div class="no-results">Произошла ошибка при поиске</div>';
+            });
+        });
+
+        // Обработка добавления книги
+        document.getElementById('addForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('/add', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById('addMessage');
+                messageDiv.textContent = data.message;
+                messageDiv.className = data.success ? 'message success' : 'message error';
+
+                if (data.success) {
+                    this.reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                messageDiv.textContent = 'Произошла ошибка при добавлении книги';
+                messageDiv.className = 'message error';
+            });
+        });
+
+        document.getElementById('searchInput').focus();
+    </script>
+</body>
+</html>
